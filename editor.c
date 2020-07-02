@@ -716,6 +716,32 @@ void editorFind() {
 	}
 }
 
+/* jump */
+void editorJump() {
+	char *sline = editorPrompt("Jump to line: %s", NULL);
+	int sline_len = strlen(sline);
+
+	/* Poor workaround to treat VERY big line numbers */
+	if (sline_len > 9)
+		sline_len = 9;
+
+	/* Avoiding str to (long...) int functions for now */
+	int line = 0;
+	for (int i = 0; i < sline_len; i++) {
+		if (!isdigit(sline[i])) {
+			editorSetStatusMessage("Type only digits!");
+			return;
+		}
+
+		line = line * 10 + (sline[i] - '0');
+	}
+
+	if (line == 0) line = 1;
+	E.cy = (line > E.numrows ? E.numrows : line) - 1; // E.cy starts at 0
+	E.rowoff = E.numrows;
+	editorSetStatusMessage("");
+}
+
 /* append buffer */
 struct abuf {
 	char *b;
@@ -1001,6 +1027,10 @@ void editorProcessKeypress() {
 			editorFind();
 			break;
 
+		case CTRL_KEY('g'):
+			editorJump();
+			break;
+
 		case BACKSPACE:
 		case CTRL_KEY('h'):
 		case DEL_KEY:
@@ -1071,7 +1101,7 @@ int main(int argc, char *argv[]) {
 	if (argc >= 2)
 		editorOpen(argv[1]);
 
-	editorSetStatusMessage("HELP: CTRL-S = save | CTRL-Q = quit | CTRL-F = find");
+	editorSetStatusMessage("HELP: CTRL-S = save | CTRL-Q = quit | CTRL-F = find | CTRL-G = jump");
 
 	while (1) {
 		editorRefreshScreen();
