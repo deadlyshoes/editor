@@ -1,5 +1,5 @@
-kilo: kilo.o
-	gcc kilo.o -o kilo
+editor: editor.o
+	gcc editor.o -o editor
 
-kilo.o: kilo.c
-	gcc kilo.c -o kilo.o -c
+editor.o: editor.c
+	gcc editor.c -o editor.o -c
