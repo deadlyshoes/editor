@@ -460,13 +460,19 @@ int editorRowCxToRx(erow *row, int cx) {
 
 int editorRowRxToCx(erow *row, int rx) {
 	int cur_rx = 0;
+	int old_rx;
 	int cx;
 	for (cx = 0; cx < row->size; cx++) {
+		old_rx = cur_rx;
 		if (row->chars[cx] == '\t')
 			cur_rx += (KILO_TAB_STOP - 1) - (cur_rx % KILO_TAB_STOP);
 		cur_rx++;
 
-		if (cur_rx > rx) return cx;
+		if (cur_rx > rx) {
+			if (rx - old_rx > cur_rx - rx)
+				return cx + 1;
+			return cx;
+		}
 	}
 	return cx;
 }
