@@ -12,6 +12,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <signal.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -111,6 +112,7 @@ struct editorSyntax HLDB[] = {
 void editorSetStatusMessage(const char *fmt, ...);
 void editorRefreshScreen();
 char *editorPrompt(char *prompt, void (*callback)(char *, int));
+int getWindowSize(int *rows, int *cols);
 
 /* terminal */
 void die(const char *s) {
@@ -154,6 +156,12 @@ int editorReadKey() {
 			return '\x1b';
 		if (read(STDIN_FILENO, &seq[1], 1) != 1)
 			return '\x1b';
+
+		FILE *output = fopen("log", "a");
+		char bruh[32];
+		snprintf(bruh, sizeof(bruh), "%c %d %d\n", c, seq[0], seq[1]);
+		fprintf(output, bruh);
+		fclose(output);
 
 		if (seq[0] == '[') {
 			if (seq[1] >= '0' && seq[1] <= '9') {
@@ -204,6 +212,17 @@ int editorReadKey() {
 		return '\x1b';
 	}
 	return c;
+}
+
+void handleWindowResize(int sig) {
+	signal(SIGWINCH, SIG_IGN);
+
+	if (getWindowSize(&E.screenrows, &E.screencols) == -1)
+		die("getWindowSize");
+	E.screenrows -= 2;
+	editorRefreshScreen();
+
+	signal(SIGWINCH, handleWindowResize);
 }
 
 int getCursorPosition(int *rows, int *cols) {
@@ -1093,6 +1112,8 @@ void initEditor() {
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1)
 		die("getWindowSize");
 	E.screenrows -= 2;
+
+	signal(SIGWINCH, handleWindowResize);
 }
 int main(int argc, char *argv[]) {
 	atexit(disableRawMode);
