@@ -1027,12 +1027,19 @@ void editorMoveCursor(int key) {
 			}
 			break;
 		case ARROW_UP:
-			if (E.cy != 0)
+			if (E.cy != 0) {
+				int cur_rx = editorRowCxToRx(&E.row[E.cy], E.cx);
+				E.cx = editorRowRxToCx(&E.row[E.cy - 1], cur_rx);
+
 				E.cy--;
+			}
 			break;
 		case ARROW_DOWN:
-			if (E.cy < E.numrows)
+			if (E.cy < E.numrows) {
+				int cur_rx = editorRowCxToRx(&E.row[E.cy], E.cx);
+				E.cx = editorRowRxToCx(&E.row[E.cy + 1], cur_rx);
 				E.cy++;
+			}
 			break;
 	}
 
