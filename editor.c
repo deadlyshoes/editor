@@ -217,6 +217,8 @@ int editorReadKey() {
 void handleWindowResize(int sig) {
 	signal(SIGWINCH, SIG_IGN);
 
+	E.rowoff = 0;
+	E.coloff = 0;
 	if (getWindowSize(&E.screenrows, &E.screencols) == -1)
 		die("getWindowSize");
 	E.screenrows -= 2;
