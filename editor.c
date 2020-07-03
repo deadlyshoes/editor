@@ -114,6 +114,7 @@ struct editorSyntax HLDB[] = {
 void editorSetStatusMessage(const char *fmt, ...);
 void editorRefreshScreen();
 char *editorPrompt(char *prompt, void (*callback)(char *, int));
+void editorMoveCursor(int key);
 int getWindowSize(int *rows, int *cols);
 
 /* terminal */
@@ -576,11 +577,19 @@ void editorInsertChar(int c) {
 }
 
 void editorInsertNewline() {
+	int il = 0; // indentation level to smart-indent
 	if (E.cx == 0) {
 		editorInsertRow(E.cy, "", 0);
 	} else {
 		erow *row = &E.row[E.cy];
-		editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+
+		/* smart-indent */
+		char indented[row->size];
+		for (il = 0; il < E.cx && (row->chars[il] == '\t' || row->chars[il] == ' '); il++)
+			indented[il] = row->chars[il];
+		memcpy(&indented[il], &row->chars[E.cx], row->size - E.cx);
+
+		editorInsertRow(E.cy + 1, indented, il + row->size - E.cx);
 		row = &E.row[E.cy];
 		row->size = E.cx;
 		row->chars[row->size] = '\0';
@@ -588,6 +597,8 @@ void editorInsertNewline() {
 	}
 	E.cy++;
 	E.cx = 0;
+	for (int j = 0; j < il; j++)
+		editorMoveCursor(ARROW_RIGHT);
 }
 
 void editorDelChar() {
