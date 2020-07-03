@@ -28,6 +28,8 @@ enum editorKey {
 	ARROW_RIGHT,
 	ARROW_UP,
 	ARROW_DOWN,
+	CTRL_ARROW_LEFT,
+	CTRL_ARROW_RIGHT,
 	DEL_KEY,
 	HOME_KEY,
 	END_KEY,
@@ -150,7 +152,7 @@ int editorReadKey() {
 	}
 
 	if (c == '\x1b') {
-		char seq[3];
+		char seq[5];
 
 		if (read(STDIN_FILENO, &seq[0], 1) != 1)
 			return '\x1b';
@@ -167,7 +169,7 @@ int editorReadKey() {
 			if (seq[1] >= '0' && seq[1] <= '9') {
 				if (read(STDIN_FILENO, &seq[2], 1) != 1)
 					return '\x1b';
-				if (seq[2] == '~')
+				if (seq[2] == '~') {
 					switch (seq[1]) {
 						case '1':
 							return HOME_KEY;
@@ -184,6 +186,19 @@ int editorReadKey() {
 						case '8':
 							return END_KEY;
 					}
+				} else if (seq[2] == ';') {
+					if (read(STDIN_FILENO, &seq[3], 1) == -1)
+						return '\x1b';
+					if (read(STDIN_FILENO, &seq[4], 1) == -1)
+						return '\x1b';
+					if (seq[3] == '5')
+						switch (seq[4]) {
+							case 'C':
+								return CTRL_ARROW_RIGHT;
+							case 'D':
+								return CTRL_ARROW_LEFT;
+						}
+				}
 			} else {
 				switch (seq[1]) {
 					case 'A':
@@ -1074,6 +1089,35 @@ void editorProcessKeypress() {
 				int times = E.screenrows;
 				while (times--)
 					editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+			}
+			break;
+
+		case CTRL_ARROW_LEFT:
+			{
+				erow *row = &E.row[E.cy];
+				if (E.cx == 0) {
+					editorMoveCursor(ARROW_LEFT);
+				} else {
+					if (row->chars[E.cx] == ' ')
+						while (row->chars[E.cx] == ' ')
+							editorMoveCursor(ARROW_LEFT);
+					while (row->chars[E.cx] != ' ' && E.cx > 0)
+						editorMoveCursor(ARROW_LEFT);
+				}
+			}
+			break;
+		case CTRL_ARROW_RIGHT:
+			{
+				erow *row = &E.row[E.cy];
+				if (E.cx == row->size) {
+					editorMoveCursor(ARROW_RIGHT);
+				} else {
+					if (row->chars[E.cx] == ' ')
+						while (row->chars[E.cx] == ' ')
+							editorMoveCursor(ARROW_RIGHT);
+					while (row->chars[E.cx] != ' ' && E.cx < row->size)
+						editorMoveCursor(ARROW_RIGHT);
+				}
 			}
 			break;
 
