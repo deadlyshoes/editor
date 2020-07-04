@@ -526,6 +526,7 @@ void editorInsertRow(int at, char *s, size_t len) {
 	E.row[at].render = NULL;
 	E.row[at].hl = NULL;
 	E.row[at].hl_open_comment = 0;
+
 	editorUpdateRow(&E.row[at]);
 
 	E.numrows++;
@@ -918,6 +919,10 @@ void editorDrawRows(struct abuf *ab) {
 }
 
 void editorDrawStatusBar(struct abuf *ab) {
+	char position[32];
+	int position_len = snprintf(position, sizeof(position), "\x1b[%d;1H", E.screenrows + 1);
+	abAppend(ab, position, position_len);
+
 	abAppend(ab, "\x1b[7m", 4);
 	char status[80], rstatus[80];
 	int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
@@ -940,6 +945,10 @@ void editorDrawStatusBar(struct abuf *ab) {
 }
 
 void editorDrawMessageBar(struct abuf *ab) {
+	char position[32];
+	int position_len = snprintf(position, sizeof(position), "\x1b[%d;1H", E.screenrows + 2);
+	abAppend(ab, position, position_len);
+
 	abAppend(ab, "\x1b[K", 3);
 	int msglen = strlen(E.statusmsg);
 	if (msglen > E.screencols)
