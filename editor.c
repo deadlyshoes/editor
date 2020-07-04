@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -70,6 +71,7 @@ typedef struct erow {
 	char *render;
 	unsigned char *hl;
 	int hl_open_comment;
+	bool damaged; // redraw line
 } erow;
 
 struct editorConfig {
@@ -500,6 +502,8 @@ void editorUpdateRow(erow *row) {
 	row->render[idx] = '\0';
 	row->rsize = idx;
 
+	row->damaged = true;
+
 	editorUpdateSyntax(row);
 }
 
@@ -818,7 +822,10 @@ void abFree(struct abuf *ab) {
 }
 
 /* output */
-void editorScroll() {
+bool editorScroll() {
+	int cur_rowoff = E.rowoff;
+	int cur_coloff = E.coloff;
+
 	E.rx = 0;
 	if (E.cy < E.numrows)
 		E.rx = editorRowCxToRx(&E.row[E.cy], E.cx);
@@ -832,6 +839,8 @@ void editorScroll() {
 		E.coloff = E.rx;
 	if (E.rx >= E.coloff + E.screencols)
 		E.coloff = E.rx - E.screencols + 1;
+
+	return (cur_rowoff != E.rowoff || cur_coloff != E.coloff);
 }
 
 void editorDrawRows(struct abuf *ab) {
@@ -857,6 +866,12 @@ void editorDrawRows(struct abuf *ab) {
 			}
 			abAppend(ab, "\x1b[K", 3);
 		} else {
+			if (!E.row[filerow].damaged)
+				continue;
+			E.row[filerow].damaged = false;
+			char position[32];
+			int position_len = snprintf(position, sizeof(position), "\x1b[%d;1H", y + 1);
+			abAppend(ab, position, position_len);
 			int len = E.row[filerow].rsize - E.coloff;
 			if (len < 0)
 				len = 0;
@@ -934,7 +949,9 @@ void editorDrawMessageBar(struct abuf *ab) {
 }
 
 void editorRefreshScreen() {
-	editorScroll();
+	if (editorScroll())
+		for (int i = 0; i < E.screenrows; i++)
+			E.row[i + E.rowoff].damaged = true;
 
 	struct abuf ab = ABUF_INIT;
 
