@@ -724,6 +724,7 @@ void editorFindCallback(char *query, int key) {
 	if (key == '\r' || key == '\x1b') {
 		last_match = -1;
 		direction = 1;
+		E.row[E.cy].damaged = true;
 		return;
 	} else if (key == ARROW_RIGHT || key == ARROW_DOWN) {
 		direction = 1;
