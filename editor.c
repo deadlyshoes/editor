@@ -1081,10 +1081,8 @@ void editorMoveCursor(int key) {
 		E.cx = rowlen;
 }
 
-void editorProcessKeypress() {
+void editorProcessKeypress(int c) {
 	static int quit_times = KILO_QUIT_TIMES;
-
-	int c = editorReadKey();
 
 	switch (c) {
 		case '\r':
@@ -1228,7 +1226,7 @@ int main(int argc, char *argv[]) {
 
 	while (1) {
 		editorRefreshScreen();
-		editorProcessKeypress();
+		editorProcessKeypress(editorReadKey());
 	}
 
 	return 0;
