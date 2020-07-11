@@ -1088,7 +1088,8 @@ void editorMoveCursor(int key) {
 				E.cy--;
 				E.cx = E.row[E.cy].size;
 			}
-			keep_rx = editorRowCxToRx(row, E.cx);
+			if (row)
+				keep_rx = editorRowCxToRx(row, E.cx);
 			break;
 		case ARROW_RIGHT: 
 			if (row && E.cx < row->size) {
@@ -1097,7 +1098,8 @@ void editorMoveCursor(int key) {
 				E.cy++;
 				E.cx = 0;
 			}
-			keep_rx = editorRowCxToRx(row, E.cx);
+			if (row)
+				keep_rx = editorRowCxToRx(row, E.cx);
 			break;
 		case ARROW_UP:
 			if (E.cy != 0) {
