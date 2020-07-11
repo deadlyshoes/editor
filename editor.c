@@ -879,6 +879,9 @@ void editorDrawRows(struct abuf *ab) {
 	for (int y = 0; y < E.screenrows; y++) {
 		int filerow = y + E.rowoff;
 		if (filerow >= E.numrows) {
+			char position[32];
+			int position_len = snprintf(position, sizeof(position), "\x1b[%d;1H", y + 1);
+			abAppend(ab, position, position_len);
 			if (E.numrows == 0 && y == E.screenrows / 3) {
 				char welcome[80];
 				int welcomelen = snprintf(welcome, sizeof(welcome), 
