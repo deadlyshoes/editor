@@ -545,7 +545,7 @@ void editorDelRow(int at) {
 	editorFreeRow(&E.row[at]);
 	memmove(&E.row[at], &E.row[at + 1], sizeof(erow) * (E.numrows - at - 1));
 	int j;
-	for (int j = at; j - E.rowoff < E.screenrows && j < E.numrows - 1; j++) {
+	for (j = at; j - E.rowoff < E.screenrows && j < E.numrows - 1; j++) {
 		E.row[j].idx--;
 		E.row[j].damaged = true;
 	}
