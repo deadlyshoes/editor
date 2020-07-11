@@ -31,6 +31,10 @@ enum editorKey {
 	ARROW_DOWN,
 	CTRL_ARROW_LEFT,
 	CTRL_ARROW_RIGHT,
+	SHIFT_ARROW_LEFT,
+	SHIFT_ARROW_RIGHT,
+	SHIFT_ARROW_UP,
+	SHIFT_ARROW_DOWN,
 	DEL_KEY,
 	HOME_KEY,
 	END_KEY,
@@ -117,6 +121,7 @@ void editorSetStatusMessage(const char *fmt, ...);
 void editorRefreshScreen();
 char *editorPrompt(char *prompt, void (*callback)(char *, int));
 void editorMoveCursor(int key);
+void editorProcessKeypress(int key);
 int getWindowSize(int *rows, int *cols);
 
 /* terminal */
@@ -194,6 +199,17 @@ int editorReadKey() {
 								return CTRL_ARROW_RIGHT;
 							case 'D':
 								return CTRL_ARROW_LEFT;
+						}
+					else if (seq[3] == '2')
+						switch (seq[4]) {
+							case 'A':
+								return SHIFT_ARROW_UP;
+							case 'B':
+								return SHIFT_ARROW_DOWN;
+							case 'C':
+								return SHIFT_ARROW_RIGHT;
+							case 'D':
+								return SHIFT_ARROW_LEFT;
 						}
 				}
 			} else {
@@ -584,6 +600,15 @@ void editorRowDelChar(erow *row, int at) {
 	E.dirty++;
 }
 
+void editorRowDelChars(erow *row, int at, int until) {
+	if (at < 0 || at >= row->size)
+		return;
+	memmove(&row->chars[until], &row->chars[at + 1], row->size - at);
+	row->size -= at + 1 - until;
+	editorUpdateRow(row);
+	E.dirty++;
+}
+
 /* editor operations */
 void editorInsertChar(int c) {
 	if (E.cy == E.numrows)
@@ -905,6 +930,15 @@ void editorDrawRows(struct abuf *ab) {
 						current_color = -1;
 					}
 					abAppend(ab, &c[j], 1);
+				} else if (hl[j] == HL_MATCH) {
+					if (current_color != HL_MATCH) {
+						abAppend(ab, "\x1b[7m", 4);
+						current_color = HL_MATCH;
+					}
+					abAppend(ab, &c[j], 1);
+					if (j < len)
+						if (hl[j + 1] != HL_MATCH)
+							abAppend(ab, "\x1b[m", 3);
 				} else {
 					int color = editorSyntaxToColor(hl[j]);
 					if (color != current_color) {
@@ -919,6 +953,7 @@ void editorDrawRows(struct abuf *ab) {
 			abAppend(ab, "\x1b[39m", 5);
 		}
 
+		abAppend(ab, "\x1b[m", 3);
 		abAppend(ab, "\x1b[K", 3);
 		abAppend(ab, "\r\n", 2);
 	}
@@ -1081,6 +1116,175 @@ void editorMoveCursor(int key) {
 		E.cx = rowlen;
 }
 
+void editorMoveSelect(int key) {
+	erow *row = &E.row[E.cy];
+
+	switch (key) {
+		case SHIFT_ARROW_LEFT:
+			{
+				if (E.cx > 0) {
+					int left = editorRowCxToRx(row, E.cx - 1);
+					int right;
+					if (row->chars[E.cx - 1] == '\t')
+						right = left + ((KILO_TAB_STOP - 1) - (left % KILO_TAB_STOP)) + 1;
+					else
+						right = left + 1;
+					for (int i = left; i < right; i++)
+						row->hl[i] = row->hl[i] == HL_MATCH ? HL_NORMAL : HL_MATCH;
+					row->damaged = true;
+				}
+				editorMoveCursor(ARROW_LEFT);
+			}
+			break;
+		case SHIFT_ARROW_RIGHT:
+			{
+				if (E.cx < row->size) {
+					int left = editorRowCxToRx(row, E.cx);
+					int right;
+					if (row->chars[E.cx] == '\t')
+						right = left + ((KILO_TAB_STOP - 1) - (left % KILO_TAB_STOP)) + 1;
+					else
+						right = left + 1;
+					for (int i = left; i < right; i++)
+						row->hl[i] = row->hl[i] == HL_MATCH ? HL_NORMAL : HL_MATCH;
+					row->damaged = true;
+				}
+				editorMoveCursor(ARROW_RIGHT);
+				//if (E.cy >= E.numrows)
+				//		editorMoveCursor(ARROW_LEFT);
+			}
+			break;
+		case SHIFT_ARROW_DOWN:
+			{
+				int until_end = row->size - E.cx;
+				int until_below = editorRowRxToCx(&E.row[E.cy + 1], editorRowCxToRx(row, E.cx)); 
+				int until = until_end + until_below;
+				for (int i = 0; i <= until; i++)
+					editorMoveSelect(SHIFT_ARROW_RIGHT);
+			}
+			break;
+		case SHIFT_ARROW_UP:
+			{
+				int until_begin = E.cx;
+				int until_above = editorRowRxToCx(&E.row[E.cy - 1], editorRowCxToRx(row, row->size - E.cx));
+				int until = until_begin + until_above;
+				for (int i = 0; i <= until; i++)
+					editorMoveSelect(SHIFT_ARROW_LEFT);
+			}
+			break;
+	}
+}
+
+void editorSelect(int key) {
+	int start_y = E.cy;
+	editorMoveSelect(key);
+
+	while (1) {
+		editorRefreshScreen();
+		int c = editorReadKey();
+
+		switch (c) {
+			case SHIFT_ARROW_LEFT:
+			case SHIFT_ARROW_RIGHT:
+			case SHIFT_ARROW_UP:
+			case SHIFT_ARROW_DOWN:
+				editorMoveSelect(c);
+				break;
+
+			case BACKSPACE:
+			case CTRL_KEY('h'):
+			case DEL_KEY:
+				{
+					int up, down;
+					if (E.cy < start_y) {
+						up = E.cy;
+						down = start_y;
+					} else {
+						up = start_y;
+						down = E.cy;
+					}
+					if (up == down) {
+						int i, j; // begin, end
+						erow *row = &E.row[E.cy];
+						for (i = 0; row->hl[i] != HL_MATCH && i < row->rsize; i++);
+						for (j = i; row->hl[j] == HL_MATCH && j < row->rsize; j++);
+						editorRowDelChars(row, j - 1, i);
+						E.cx = editorRowRxToCx(row, i);
+					} else {
+						E.cy = down;
+						erow *row = &E.row[E.cy];
+						int k;
+						for (k = row->rsize - 1; row->hl[k] != HL_MATCH && k > 0; k--);
+						if (k == row->size - 1)
+							editorDelRow(E.cy);
+						else
+							editorRowDelChars(row, k, 0);
+						for (int i = down - 1; i > up; i--)
+							editorDelRow(i);
+						E.cy = up;
+						row = &E.row[E.cy];
+						for (k = row->rsize - 1; row->hl[k] == HL_MATCH && k > 0; k--);
+						k++;
+						if (k == 0)
+							editorDelRow(E.cy);
+						else {
+							editorRowDelChars(row, row->size - 1, k);
+							E.cy = up;
+							editorRowAppendString(&E.row[E.cy], E.row[E.cy + 1].chars, E.row[E.cy + 1].size);
+							editorDelRow(E.cy + 1);
+						}
+						E.cx = editorRowRxToCx(&E.row[E.cy], k);
+					}
+				}
+				return;
+
+				/* motion keys */
+			case CTRL_ARROW_LEFT:
+			case CTRL_ARROW_RIGHT:
+			case ARROW_LEFT:
+			case ARROW_RIGHT:
+			case ARROW_UP:
+			case ARROW_DOWN:
+			case HOME_KEY:
+			case END_KEY:
+			case PAGE_UP:
+			case PAGE_DOWN:
+				{
+					int up, down;
+					if (E.cy < start_y) {
+						up = E.cy;
+						down = start_y;
+					} else {
+						up = start_y;
+						down = E.cy;
+					}
+					for (int i = up; i <= down; i++) {
+						editorUpdateSyntax(&E.row[i]);
+						E.row[i].damaged = true;
+					}
+					editorProcessKeypress(c);
+				}
+				return;
+
+			default:
+				{
+					int up, down;
+					if (E.cy < start_y) {
+						up = E.cy;
+						down = start_y;
+					} else {
+						up = start_y;
+						down = E.cy;
+					}
+					for (int i = up + 1; i < down; i++)
+						editorDelRow(i);
+					editorProcessKeypress(c);
+				}
+				return;
+		}
+	}
+}
+
 void editorProcessKeypress(int c) {
 	static int quit_times = KILO_QUIT_TIMES;
 
@@ -1144,6 +1348,13 @@ void editorProcessKeypress(int c) {
 				while (times--)
 					editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
 			}
+			break;
+
+		case SHIFT_ARROW_LEFT:
+		case SHIFT_ARROW_RIGHT:
+		case SHIFT_ARROW_UP:
+		case SHIFT_ARROW_DOWN:
+			editorSelect(c);
 			break;
 
 		case CTRL_ARROW_LEFT:
