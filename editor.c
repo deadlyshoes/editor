@@ -449,7 +449,14 @@ void editorSelectSyntaxHighlight() {
 				(!is_ext && strstr(E.filename, s->filematch[i]))) {
 				E.syntax = s;
 
-				for (int filerow = 0; filerow < E.numrows; filerow++)
+				int filerow;
+				for (filerow = 0; filerow < E.rowoff; filerow++)
+					editorUpdateSyntax(&E.row[filerow]);
+				for (; filerow < E.rowoff + E.screenrows; filerow++) {
+					editorUpdateSyntax(&E.row[filerow]);
+					E.row[filerow].damaged = true;
+				}
+				for (; filerow < E.numrows; filerow++)
 					editorUpdateSyntax(&E.row[filerow]);
 				return;
 			}
